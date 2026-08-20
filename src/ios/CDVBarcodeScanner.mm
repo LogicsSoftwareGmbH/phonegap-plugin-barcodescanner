@@ -73,6 +73,8 @@
 - (void)barcodeScanSucceeded:(NSString*)text format:(NSString*)format;
 - (void)barcodeScanFailed:(NSString*)message;
 - (void)barcodeScanCancelled;
+- (void)barcodeScanDismissedInteractively;
+- (void)tearDownCapture;
 - (void)openDialog;
 - (NSString*)setUpCaptureSession;
 - (void)captureOutput:(AVCaptureOutput*)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection*)connection;
@@ -375,7 +377,14 @@ parentViewController:(UIViewController*)parentViewController
     self.capturing = NO;
     [self.captureSession stopRunning];
     [self.parentViewController dismissViewControllerAnimated:self.isTransitionAnimated completion:callbackBlock];
+    [self tearDownCapture];
+}
 
+//--------------------------------------------------------------------------
+// LOGICS 8.1.2-logics: common teardown, extracted from barcodeScanDone:
+- (void)tearDownCapture {
+    self.capturing = NO;
+    [self.captureSession stopRunning];
 
     AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
     [device lockForConfiguration:nil];
@@ -387,6 +396,19 @@ parentViewController:(UIViewController*)parentViewController
     // viewcontroller holding onto a reference to us, release them so they
     // will release us
     self.viewController = nil;
+}
+
+//--------------------------------------------------------------------------
+// LOGICS 8.1.2-logics: the scanner was dismissed interactively (iOS 13+ swipe-down on a sheet). Cannot happen with
+// UIModalPresentationFullScreen (see openDialog), but if it ever does: tear down and report "cancelled" to JS, otherwise
+// the JS side would stay "Scan is already in progress" until the app is restarted, and this processor + view controller
+// would leak (retain cycle, normally broken in tearDownCapture). Not via barcodeScanCancelled: the view controller is
+// already gone, and dismissViewControllerAnimated:completion: does not run its completion block (which returns the
+// result) when nothing is presented.
+- (void)barcodeScanDismissedInteractively {
+    [self tearDownCapture];
+    [self.plugin returnSuccess:@"" format:@"" cancelled:TRUE flipped:self.isFlipped callback:self.callback];
+    self.isFlipped = NO;
 }
 
 //--------------------------------------------------------------------------
@@ -827,17 +849,10 @@ parentViewController:(UIViewController*)parentViewController
 }
 
 //--------------------------------------------------------------------------
-// LOGICS 8.1.2-logics: iOS 13+ only: the scanner was dismissed interactively (swipe down on a sheet). Cannot happen with
-// UIModalPresentationFullScreen (see openDialog), but if it ever does: stop capturing and report "cancelled" to JS,
-// otherwise the JS side would stay "Scan is already in progress" until the app is restarted.
-// Not via barcodeScanCancelled: the view controller is already gone, and dismissViewControllerAnimated:completion: does not
-// reliably run its completion block (which returns the result) when nothing is presented.
+// LOGICS 8.1.2-logics: UIAdaptivePresentationControllerDelegate, iOS 13+ only: the sheet was swiped away.
+// Deferred like cancelButtonPressed: so that this view controller is not torn down in the middle of its own callback.
 - (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {
-    CDVbcsProcessor* processor = self.processor;
-    processor.capturing = NO;
-    [processor.captureSession stopRunning];
-    [processor.plugin returnSuccess:@"" format:@"" cancelled:TRUE flipped:processor.isFlipped callback:processor.callback];
-    processor.isFlipped = NO;
+    [self.processor performSelector:@selector(barcodeScanDismissedInteractively) withObject:nil afterDelay:0];
 }
 
 - (IBAction)flipCameraButtonPressed:(id)sender
