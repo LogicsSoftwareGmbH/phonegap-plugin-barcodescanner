@@ -73,6 +73,8 @@
 - (void)barcodeScanSucceeded:(NSString*)text format:(NSString*)format;
 - (void)barcodeScanFailed:(NSString*)message;
 - (void)barcodeScanCancelled;
+- (void)barcodeScanDismissedInteractively;
+- (void)tearDownCapture;
 - (void)openDialog;
 - (NSString*)setUpCaptureSession;
 - (void)captureOutput:(AVCaptureOutput*)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection*)connection;
@@ -94,7 +96,7 @@
 //------------------------------------------------------------------------------
 // view controller for the ui
 //------------------------------------------------------------------------------
-@interface CDVbcsViewController : UIViewController <CDVBarcodeScannerOrientationDelegate> {}
+@interface CDVbcsViewController : UIViewController <CDVBarcodeScannerOrientationDelegate, UIAdaptivePresentationControllerDelegate> {}
 @property (nonatomic, retain) CDVbcsProcessor*  processor;
 @property (nonatomic, retain) NSString*        alternateXib;
 @property (nonatomic)         BOOL             shutterPressed;
@@ -358,6 +360,12 @@ parentViewController:(UIViewController*)parentViewController
 
 //--------------------------------------------------------------------------
 - (void)openDialog {
+    // LOGICS 8.1.2-logics: since iOS 13 the default presentation style is a page sheet (UIModalPresentationAutomatic) that the user
+    // can dismiss by swiping down. The plugin never gets notified about that, so the JS side stays "Scan is already in progress"
+    // until the app is restarted, and the capture session keeps running. Present fullscreen like before iOS 13 (no swipe-down),
+    // and as a safety net report an interactive dismissal as "cancelled" (see presentationControllerDidDismiss:).
+    self.viewController.modalPresentationStyle = UIModalPresentationFullScreen;
+    self.viewController.presentationController.delegate = self.viewController;   // must be set after modalPresentationStyle
     [self.parentViewController
      presentViewController:self.viewController
      animated:self.isTransitionAnimated completion:nil
@@ -369,7 +377,14 @@ parentViewController:(UIViewController*)parentViewController
     self.capturing = NO;
     [self.captureSession stopRunning];
     [self.parentViewController dismissViewControllerAnimated:self.isTransitionAnimated completion:callbackBlock];
+    [self tearDownCapture];
+}
 
+//--------------------------------------------------------------------------
+// LOGICS 8.1.2-logics: common teardown, extracted from barcodeScanDone:
+- (void)tearDownCapture {
+    self.capturing = NO;
+    [self.captureSession stopRunning];
 
     AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
     [device lockForConfiguration:nil];
@@ -381,6 +396,19 @@ parentViewController:(UIViewController*)parentViewController
     // viewcontroller holding onto a reference to us, release them so they
     // will release us
     self.viewController = nil;
+}
+
+//--------------------------------------------------------------------------
+// LOGICS 8.1.2-logics: the scanner was dismissed interactively (iOS 13+ swipe-down on a sheet). Cannot happen with
+// UIModalPresentationFullScreen (see openDialog), but if it ever does: tear down and report "cancelled" to JS, otherwise
+// the JS side would stay "Scan is already in progress" until the app is restarted, and this processor + view controller
+// would leak (retain cycle, normally broken in tearDownCapture). Not via barcodeScanCancelled: the view controller is
+// already gone, and dismissViewControllerAnimated:completion: does not run its completion block (which returns the
+// result) when nothing is presented.
+- (void)barcodeScanDismissedInteractively {
+    [self tearDownCapture];
+    [self.plugin returnSuccess:@"" format:@"" cancelled:TRUE flipped:self.isFlipped callback:self.callback];
+    self.isFlipped = NO;
 }
 
 //--------------------------------------------------------------------------
@@ -818,6 +846,13 @@ parentViewController:(UIViewController*)parentViewController
 //--------------------------------------------------------------------------
 - (IBAction)cancelButtonPressed:(id)sender {
     [self.processor performSelector:@selector(barcodeScanCancelled) withObject:nil afterDelay:0];
+}
+
+//--------------------------------------------------------------------------
+// LOGICS 8.1.2-logics: UIAdaptivePresentationControllerDelegate, iOS 13+ only: the sheet was swiped away.
+// Deferred like cancelButtonPressed: so that this view controller is not torn down in the middle of its own callback.
+- (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {
+    [self.processor performSelector:@selector(barcodeScanDismissedInteractively) withObject:nil afterDelay:0];
 }
 
 - (IBAction)flipCameraButtonPressed:(id)sender

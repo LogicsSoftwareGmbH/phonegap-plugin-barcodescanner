@@ -1,5 +1,14 @@
 # Change Log
 
+## v8.1.2-logics (LogicsSoftwareGmbH fork)
+
+- iOS: present the scanner fullscreen again (iOS 13+ showed a swipe-dismissible sheet)
+- iOS: report an interactive (swipe-down) dismissal as `cancelled: true` instead of leaving the scan "in progress"
+
+## v8.1.1-logics (LogicsSoftwareGmbH fork)
+
+- Android: update `barcodescanner.gradle`.
+
 ## v8.1.0
 
 - Don't use `dispatch_sync` if already in the main thread ([#797](https://github.com/phonegap/phonegap-plugin-barcodescanner/pull/797)) [view commit](https://github.com/phonegap/phonegap-plugin-barcodescanner/commit/d45ffc32c03e489b6bb3da8a29d950e7a89f4812)
