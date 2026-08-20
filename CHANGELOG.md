@@ -2,8 +2,8 @@
 
 ## v8.1.2-logics (LogicsSoftwareGmbH fork)
 
-- iOS: present the scanner fullscreen again (iOS 13+ showed a swipe-dismissible sheet) ([#2](https://github.com/LogicsSoftwareGmbH/phonegap-plugin-barcodescanner/pull/2))
-- iOS: report an interactive (swipe-down) dismissal as `cancelled: true` instead of leaving the scan "in progress" ([#2](https://github.com/LogicsSoftwareGmbH/phonegap-plugin-barcodescanner/pull/2))
+- iOS: present the scanner fullscreen again (iOS 13+ showed a swipe-dismissible sheet)
+- iOS: report an interactive (swipe-down) dismissal as `cancelled: true` instead of leaving the scan "in progress"
 
 ## v8.1.1-logics (LogicsSoftwareGmbH fork)
 
