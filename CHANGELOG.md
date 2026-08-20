@@ -1,5 +1,13 @@
 # Change Log
 
+## v8.1.2-logics (LogicsSoftwareGmbH fork)
+
+- iOS: present the scanner fullscreen (`UIModalPresentationFullScreen`). Since iOS 13 the default was a page sheet that could be dismissed by swiping down without any callback to JS, leaving `scanInProgress` set ("Scan is already in progress" on every further scan until app restart) and the capture session running. Safety net: an interactive dismissal now reports `cancelled: true` via `presentationControllerDidDismiss:`.
+
+## v8.1.1-logics (LogicsSoftwareGmbH fork)
+
+- Android: update `barcodescanner.gradle`.
+
 ## v8.1.0
 
 - Don't use `dispatch_sync` if already in the main thread ([#797](https://github.com/phonegap/phonegap-plugin-barcodescanner/pull/797)) [view commit](https://github.com/phonegap/phonegap-plugin-barcodescanner/commit/d45ffc32c03e489b6bb3da8a29d950e7a89f4812)
